@@ -36955,7 +36955,7 @@
 	 */
 
 	var getAppId = function getAppId() {
-	    return window.localStorage.getItem('config.app_id') || (/staging\.binary\.com/i.test(window.location.hostname) ? '3229' : '1');
+	    return window.localStorage.getItem('config.app_id') || (/staging\.binary\.com/i.test(window.location.hostname) ? '1159' : '1');
 	};
 
 	var getSocketURL = function getSocketURL() {
