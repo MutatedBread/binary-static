@@ -83246,11 +83246,13 @@
 	        stream_ids = void 0,
 	        chart_stream_ids = void 0,
 	        getPageTickStream = void 0,
-	        opened = void 0;
+	        opened = void 0,
+	        movingOut = void 0;
 
 	    var init = function init() {
 	        $container = null;
 	        opened = false;
+	        movingOut = false;
 	    };
 
 	    var container = function container(refresh) {
@@ -83357,11 +83359,9 @@
 	        con.css('position', 'fixed').css('z-index', getHighestZIndex() + 100);
 	        body.append(con);
 	        con.show();
-	        repositionConfirmation();
 	        $(window).resize(function () {
 	            repositionConfirmation();
 	        });
-	        opened = true;
 	        return con;
 	    };
 
@@ -83378,9 +83378,9 @@
 	        if (x === undefined) {
 	            if (win_.width() < 767) {
 	                x = x_min;
-	            } else if (win_.width() >= 767 && !opened) {
+	            } else if (win_.width() >= 767 && !opened && !movingOut) {
 	                x = win_.width();
-	            } else {
+	            } else if (win_.width() >= 767 && opened) {
 	                x = win_.width() - con.width();
 	            }
 	        }
@@ -83391,10 +83391,14 @@
 	            }
 	        }
 	        con.offset({ left: x, top: y });
-	        if (!opened && win_.width() >= 767) {
+	        if (!movingOut && !opened && win_.width() >= 767) {
+	            opened = true;
+	            movingOut = true;
 	            con.animate({
 	                left: win_.width() - con.width()
-	            }, 'fast');
+	            }, 'fast', function () {
+	                movingOut = false;
+	            });
 	        }
 	    };
 
