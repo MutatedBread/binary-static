@@ -88,6 +88,9 @@ table {
                 }
             }
         }
+        .selectedRow {
+            background-color: $COLOR_YELLOW;
+        }
     }
     @media (max-width: $md) {
         #profit-table tr {

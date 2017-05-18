@@ -1,6 +1,6 @@
 const moment               = require('moment');
 const StatementUI          = require('./statement.ui');
-const ViewPopup            = require('../../view_popup/view_popup');
+const Slider               = require('../../slider/slider');
 const BinarySocket         = require('../../../socket');
 const getLanguage          = require('../../../../base/language').get;
 const localize             = require('../../../../base/localize').localize;
@@ -171,7 +171,7 @@ const StatementInit = (() => {
     const onLoad = () => {
         initPage();
         attachDatePicker();
-        ViewPopup.viewButtonOnClick('#statement-container');
+        Slider.viewButtonOnClick('#statement-container');
     };
 
     return {
