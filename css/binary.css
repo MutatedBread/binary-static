@@ -851,6 +851,9 @@ table td {
     font-size: 0.75614rem;
   }
 }
+.table-container #statement-table .selectedRow, .table-container #profit-table .selectedRow {
+  background-color: #fef1cf;
+}
 @media (max-width: 600px) {
   .table-container #profit-table tr > th.contract, .table-container #profit-table tr > td.contract {
     display: none !important;

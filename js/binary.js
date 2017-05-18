@@ -82730,10 +82730,11 @@
 	        $statement_row.children('.date').addClass('pre');
 	        $statement_row.children('.desc').html(localize(statement_data.desc) + '<br>');
 
-	        // create view button and append
+	        // make the entire row clickable
 	        if (statement_data.action === 'Sell' || statement_data.action === 'Buy') {
-	            var $view_button = $('<button/>', { class: 'button open_contract_details_slider', text: localize('View'), contract_id: statement_data.id });
-	            $statement_row.children('.desc,.details').append($view_button);
+	            // make the entire row clickable
+	            $statement_row.attr('contract_id', statement_data.id);
+	            $statement_row.addClass('open_contract_details_slider');
 	        }
 
 	        return $statement_row[0]; // return DOM instead of jquery object
@@ -82866,15 +82867,15 @@
 	        chart_updated = void 0;
 	    var $container = void 0,
 	        $loading = void 0,
-	        btn_view = void 0;
+	        row_view = void 0;
 
 	    var sliderbox_id = 'inpage_slider_content_box';
 	    var wrapper_id = 'sell_content_wrapper';
 	    var hidden_class = 'invisible';
 
-	    var init = function init(button) {
-	        btn_view = button;
-	        contract_id = $(btn_view).attr('contract_id');
+	    var init = function init(row) {
+	        row_view = row;
+	        contract_id = $(row_view).attr('contract_id');
 	        contract = {};
 	        is_sold = false;
 	        is_sell_clicked = false;
@@ -83214,6 +83215,8 @@
 
 	    var viewButtonOnClick = function viewButtonOnClick(container_selector) {
 	        $(container_selector).on('click', '.open_contract_details_slider', function (e) {
+	            $('.selectedRow').removeClass('selectedRow');
+	            $(this).addClass('selectedRow');
 	            e.preventDefault();
 	            init(this);
 	        });
