@@ -781,6 +781,7 @@ table thead, table th {
   background: #f2f2f2;
   border-bottom: 1px solid #44484c;
   vertical-align: middle;
+  word-wrap: break-word;
 }
 table td {
   vertical-align: top;
@@ -854,6 +855,16 @@ table td {
 .table-container #statement-table .selectedRow, .table-container #profit-table .selectedRow {
   background-color: #fef1cf;
 }
+.table-container #statement-table .pointerCursor, .table-container #profit-table .pointerCursor {
+  cursor: pointer;
+}
+.table-container #statement-table .sortIcon, .table-container #profit-table .sortIcon {
+  background: url("https://image.flaticon.com/icons/svg/32/32074.svg");
+  background-size: cover;
+  width: 0.8em;
+  height: 0.8em;
+  float: right;
+}
 @media (max-width: 600px) {
   .table-container #profit-table tr > th.contract, .table-container #profit-table tr > td.contract {
     display: none !important;
@@ -861,6 +872,13 @@ table td {
   .table-container #statement-table tr > th.desc, .table-container #statement-table tr > td.desc {
     display: none !important;
   }
+}
+.table-container .sticky {
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 .price_moved_up {
