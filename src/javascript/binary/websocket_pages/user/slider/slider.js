@@ -185,6 +185,13 @@ const Slider = (() => {
         sellSetVisibility(!is_sell_clicked && !is_sold && !is_ended && +contract.is_valid_to_sell === 1);
         contract.chart_validation_error = contract.validation_error;
         contract.validation_error = '';
+
+        const timer = window.setInterval(() => {
+            if ($('.highcharts-root').is(':visible')) {
+                $('#sell_details_chart_wrapper').find('.barspinner').addClass('invisible');
+                window.clearInterval(timer);
+            }
+        }, 10);
     };
 
     const updateTimers = () => {
@@ -269,7 +276,7 @@ const Slider = (() => {
             <div id="trade_details_bottom"><div id="contract_sell_wrapper" class="${hidden_class}"></div><div id="contract_sell_message"></div><div id="contract_win_status" class="${hidden_class}"></div></div>`));
 
         $sections.find('#sell_details_chart_wrapper').html($('<div/>', { id: (contract.tick_count ? 'tick_chart' : 'analysis_live_chart'), class: 'live_chart_wrapper' }));
-
+        $sections.find('#sell_details_chart_wrapper').append('<div class="barspinner dark"><div class="rect1"></div><div class="rect2"></div><div class="rect3"></div><div class="rect4"></div><div class="rect5"></div></div>');
         $container.find(`#${wrapper_id}`)
             .append($sections.html())
             .append($('<div/>', { id: 'errMsg', class: `notice-msg ${hidden_class}` }));

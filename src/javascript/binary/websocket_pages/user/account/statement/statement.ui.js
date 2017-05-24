@@ -14,7 +14,7 @@ const StatementUI = (() => {
         oauth_apps = {};
 
     const table_id = 'statement-table';
-    const columns = ['date', 'ref', 'payout', 'act', 'desc', 'credit', 'bal', 'details'];
+    const columns = ['date', 'ref', 'payout', 'act', 'desc', 'credit', 'bal'];
 
     const createEmptyStatementTable = () => {
         const header = [
@@ -25,7 +25,6 @@ const StatementUI = (() => {
             localize('Description'),
             localize('Credit/Debit'),
             localize('Balance'),
-            localize('Details'),
         ];
 
         const jp_client = jpClient();
@@ -63,7 +62,6 @@ const StatementUI = (() => {
             '',
             statement_data.amount,
             statement_data.balance,
-            '',
         ], columns, 'data');
 
         $statement_row.children('.credit').addClass(credit_debit_type);
@@ -75,6 +73,7 @@ const StatementUI = (() => {
             // make the entire row clickable
             $statement_row.attr('contract_id', statement_data.id);
             $statement_row.addClass('open_contract_details_slider');
+            $statement_row.addClass('pointerCursor');
         }
 
         return $statement_row[0];        // return DOM instead of jquery object

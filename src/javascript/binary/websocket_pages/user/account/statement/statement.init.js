@@ -11,6 +11,7 @@ const dateValueChanged     = require('../../../../common_functions/common_functi
 const jpClient             = require('../../../../common_functions/country_base').jpClient;
 const toISOFormat          = require('../../../../common_functions/string_util').toISOFormat;
 const DatePicker           = require('../../../../components/date_picker');
+const sortingMode          = require('./sortingMode');
 
 const StatementInit = (() => {
     'use strict';
@@ -26,7 +27,9 @@ const StatementInit = (() => {
         pending,
         current_batch,
         transactions_received,
-        transactions_consumed;
+        transactions_consumed,
+        currentSortingMode = sortingMode.DATE_RECENT,
+        clonedHeader = null;
 
     const tableExist = () => (document.getElementById('statement-table'));
 
@@ -76,7 +79,10 @@ const StatementInit = (() => {
         }
 
         if (!tableExist()) {
-            StatementUI.createEmptyStatementTable().appendTo('#statement-container');
+            const $header = StatementUI.createEmptyStatementTable();
+            headerSorterBinder($header);
+            headerPointerCursorAndIcon($header);
+            $header.appendTo('#statement-container');
             $('.act, .credit').addClass('nowrap');
             StatementUI.updateStatementTable(getNextChunkStatement());
 
@@ -101,6 +107,37 @@ const StatementInit = (() => {
 
     const loadStatementChunkWhenScroll = () => {
         $(document).scroll(() => {
+            if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top &&
+                $(document).scrollTop() <= getTableBody().children('tr').last().offset().top &&
+                !clonedHeader) {
+                // clone header and clone statement table and append
+                clonedHeader = $('#statement-table').find('thead').clone();
+                clonedHeader.addClass('sticky');
+                const stickyHeaderContainer = $('<table>', { id: 'statement-table', class: 'sticky-table' });
+                stickyHeaderContainer.append(clonedHeader);
+                $('.table-container').append(stickyHeaderContainer);
+
+                // add class sticky
+                clonedHeader.addClass('sticky');
+
+                // resize the cloned header
+                const children = $('.sticky').find('tr').children('th');
+                const reference = getTableBody().children('tr').first().children('td');
+                for (let i = 0; i < children.length; i++) {
+                    children.eq(i).width(reference.eq(i).width());
+                }
+
+                // bind cloned header with click listener to sorting functions
+                headerSorterBinder($('.sticky'));
+            } else if ($(document).scrollTop() < getTableBody().children('tr').first().offset().top ||
+                        $(document).scrollTop() > getTableBody().children('tr').last().offset().top) {
+                // if header is visible or table finishes, destroy cloned header with table
+                if (clonedHeader) {
+                    $('.sticky-table').remove();
+                    clonedHeader = null;
+                }
+            }
+
             const hidableHeight = (percentage) => {
                 const total_hideable = $(document).height() - $(window).height();
                 return Math.floor((total_hideable * percentage) / 100);
@@ -115,7 +152,37 @@ const StatementInit = (() => {
                 return;
             }
 
-            if (!finishedConsumed()) StatementUI.updateStatementTable(getNextChunkStatement());
+            if (!finishedConsumed()) {
+                StatementUI.updateStatementTable(getNextChunkStatement());
+                switch (currentSortingMode) {
+                    case sortingMode.DATE_LONGTIMEAGO:
+                    case sortingMode.DATE_RECENT:
+                        orderTableByDate(false);
+                        break;
+                    case sortingMode.REF_LEAST:
+                    case sortingMode.REF_MOST:
+                        orderTableByRef(false);
+                        break;
+                    case sortingMode.PAYOUT_LEAST:
+                    case sortingMode.PAYOUT_MOST:
+                        orderTableByPayout(false);
+                        break;
+                    case sortingMode.ACT_BUY:
+                    case sortingMode.ACT_SELL:
+                        orderTableByAction(false);
+                        break;
+                    case sortingMode.CREDIT_LOSSES:
+                    case sortingMode.CREDIT_PROFIT:
+                        orderTableByCredit(false);
+                        break;
+                    case sortingMode.BAL_LEAST:
+                    case sortingMode.BAL_MOST:
+                        orderTableByBalance(false);
+                        break;
+                    default:
+                        break;
+                }
+            }
         });
     };
 
@@ -172,6 +239,284 @@ const StatementInit = (() => {
         initPage();
         attachDatePicker();
         Slider.viewButtonOnClick('#statement-container');
+    };
+
+    const headerSorterBinder = (header) => {
+        header.find('.date').on('click', () => {
+            orderTableByDate(true);
+        });
+        header.find('.ref').on('click', () => {
+            orderTableByRef(true);
+        });
+        header.find('.payout').on('click', () => {
+            orderTableByPayout(true);
+        });
+        header.find('.act').on('click', () => {
+            orderTableByAction(true);
+        });
+        header.find('.credit').on('click', () => {
+            orderTableByCredit(true);
+        });
+        header.find('.bal').on('click', () => {
+            orderTableByBalance(true);
+        });
+    };
+
+    const headerPointerCursorAndIcon = (header) => {
+        header.find('.date').addClass('pointerCursor');
+        header.find('.ref').addClass('pointerCursor');
+        header.find('.payout').addClass('pointerCursor');
+        header.find('.act').addClass('pointerCursor');
+        header.find('.credit').addClass('pointerCursor');
+        header.find('.bal').addClass('pointerCursor');
+
+        header.find('.date').append('<span class="sortIcon"></span>');
+        header.find('.ref').append('<span class="sortIcon"></span>');
+        header.find('.payout').append('<span class="sortIcon"></span>');
+        header.find('.act').append('<span class="sortIcon"></span>');
+        header.find('.credit').append('<span class="sortIcon"></span>');
+        header.find('.bal').append('<span class="sortIcon"></span>');
+    };
+
+    const orderTableByDate = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.DATE_LONGTIMEAGO) {
+                currentSortingMode = sortingMode.DATE_RECENT;
+            } else {
+                currentSortingMode = sortingMode.DATE_LONGTIMEAGO;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const descending = ((Number(currentSortingMode !== sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
+        const ascending = ((Number(currentSortingMode === sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
+
+        rowsInfo.sort((a, b) => {
+            const dateFirst = a.date.replace(/[-:GMT \n]/g, '');
+            const dateSecond = b.date.replace(/[-:GMT \n]/g, '');
+            if (dateFirst < dateSecond) {
+                return descending;
+            }
+            if (dateFirst > dateSecond) {
+                return ascending;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const orderTableByRef = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.REF_LEAST) {
+                currentSortingMode = sortingMode.REF_MOST;
+            } else {
+                currentSortingMode = sortingMode.REF_LEAST;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const descending = ((Number(currentSortingMode !== sortingMode.REF_LEAST) * 2) - 1);
+        const ascending = ((Number(currentSortingMode === sortingMode.REF_LEAST) * 2) - 1);
+
+        rowsInfo.sort((a, b) => {
+            if (a.ref < b.ref) {
+                return descending;
+            }
+            if (a.ref > b.ref) {
+                return ascending;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const orderTableByPayout = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.PAYOUT_MOST) {
+                currentSortingMode = sortingMode.PAYOUT_LEAST;
+            } else {
+                currentSortingMode = sortingMode.PAYOUT_MOST;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const descending = ((Number(currentSortingMode !== sortingMode.PAYOUT_MOST) * 2) - 1);
+        const ascending = ((Number(currentSortingMode === sortingMode.PAYOUT_MOST) * 2) - 1);
+
+        rowsInfo.sort((a, b) => {
+            const aPayNum = Number(a.payout.replace(/-/g, ''));
+            const bPayNum = Number(b.payout.replace(/-/g, ''));
+
+            if (aPayNum < bPayNum) {
+                return descending;
+            }
+            if (aPayNum > bPayNum) {
+                return ascending;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const orderTableByAction = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.ACT_BUY) {
+                currentSortingMode = sortingMode.ACT_SELL;
+            } else {
+                currentSortingMode = sortingMode.ACT_BUY;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const buy = ((Number(currentSortingMode === sortingMode.ACT_BUY) * 2) - 1);
+        const sell = ((Number(currentSortingMode !== sortingMode.ACT_BUY) * 2) - 1);
+        rowsInfo.sort((a, b) => {
+            if (a.act < b.act) {
+                return buy;
+            }
+            if (a.act > b.act) {
+                return sell;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const orderTableByCredit = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.CREDIT_PROFIT) {
+                currentSortingMode = sortingMode.CREDIT_LOSSES;
+            } else {
+                currentSortingMode = sortingMode.CREDIT_PROFIT;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const losses = ((Number(currentSortingMode !== sortingMode.CREDIT_PROFIT) * 2) - 1);
+        const profit = ((Number(currentSortingMode === sortingMode.CREDIT_PROFIT) * 2) - 1);
+
+        rowsInfo.sort((a, b) => {
+            const aCredit = Number(a.credit.replace(/,/g, ''));
+            const bCredit = Number(b.credit.replace(/,/g, ''));
+
+            if (aCredit < bCredit) {
+                return profit;
+            }
+            if (aCredit > bCredit) {
+                return losses;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const orderTableByBalance = (change) => {
+        if (change) {
+            if (currentSortingMode === sortingMode.BAL_MOST) {
+                currentSortingMode = sortingMode.BAL_LEAST;
+            } else {
+                currentSortingMode = sortingMode.BAL_MOST;
+            }
+        }
+        const children = getTableBody().children('tr');
+        const rowsInfo = [];
+        for (let i = 0; i < children.length; i++) {
+            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
+        }
+        const ascending = ((Number(currentSortingMode !== sortingMode.BAL_MOST) * 2) - 1);
+        const descending = ((Number(currentSortingMode === sortingMode.BAL_MOST) * 2) - 1);
+
+        rowsInfo.sort((a, b) => {
+            const aBalance = Number(a.bal.replace(/,/g, ''));
+            const bBalance = Number(b.bal.replace(/,/g, ''));
+            if (aBalance < bBalance) {
+                return descending;
+            }
+            if (aBalance > bBalance) {
+                return ascending;
+            }
+            return 0;
+        });
+        replaceTableBodyRowsInfo(children, rowsInfo);
+    };
+
+    const getTableBody = () => {
+        if (tableExist) {
+            return $('#statement-table').find('tbody');
+        }
+        return null;
+    };
+
+    const getRowInfoFromTR = (tr) => {
+        const row = {
+            date  : tr.find('.date').html(),
+            ref   : tr.find('.ref').find('span').html(),
+            payout: tr.find('.payout').html(),
+            act   : tr.find('.act').html(),
+            desc  : tr.find('.desc').html(),
+            credit: tr.find('.credit').html(),
+            bal   : tr.find('.bal').html(),
+        };
+        if (tr.attr('contract_id') !== undefined) {
+            row.contract_id = tr.attr('contract_id');
+        }
+
+        if (tr.hasClass('selectedRow')) {
+            row.selectedRow = true;
+        }
+
+        return row;
+    };
+
+    const replaceTableBodyRowsInfo = (rows, sortedInfo) => {
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows.eq(i);
+            if (sortedInfo[i].contract_id) {
+                row.attr('contract_id', sortedInfo[i].contract_id);
+            } else {
+                row.removeAttr('contract_id');
+            }
+
+            if (sortedInfo[i].selectedRow) {
+                row.addClass('selectedRow');
+            } else {
+                row.removeClass('selectedRow');
+            }
+
+            row.find('.date').html(sortedInfo[i].date);
+            row.find('.ref').find('span').html(sortedInfo[i].ref);
+            row.find('.payout').html(sortedInfo[i].payout);
+            row.find('.act').html(sortedInfo[i].act);
+            row.find('.desc').html(sortedInfo[i].desc);
+            row.find('.credit').html(sortedInfo[i].credit);
+            row.find('.bal').html(sortedInfo[i].bal);
+
+            row.find('.credit').removeClass('loss');
+            row.find('.credit').removeClass('profit');
+
+            if (sortedInfo[i].credit.replace(/,/g, '') >= 0.00) {
+                row.find('.credit').removeClass('loss');
+                row.find('.credit').addClass('profit');
+            } else if (sortedInfo[i].credit.replace(/,/g, '') < 0.00) {
+                row.find('.credit').addClass('loss');
+                row.find('.credit').removeClass('profit');
+            }
+        }
     };
 
     return {

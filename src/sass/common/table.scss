@@ -12,6 +12,7 @@ table {
         background: $COLOR_LIGHT_GRAY;
         border-bottom: 1px solid $COLOR_DARK_GRAY;
         vertical-align: middle;
+        word-wrap: break-word;
     }
     td {
         vertical-align: top;
@@ -91,6 +92,17 @@ table {
         .selectedRow {
             background-color: $COLOR_YELLOW;
         }
+        .pointerCursor {
+            cursor: pointer;
+        }
+        .sortIcon {
+            //background: url('./../../images/common/sort.svg');
+            background: url('https://image.flaticon.com/icons/svg/32/32074.svg');
+            background-size: cover;
+            width: 0.8em;
+            height: 0.8em;
+            float: right;
+        }
     }
     @media (max-width: $md) {
         #profit-table tr {
@@ -103,5 +115,12 @@ table {
                 display: none !important;
             }
         }
+    }
+    .sticky {
+        position: fixed;
+        top: 0;
+        z-index: 100;
+        overflow-x: hidden;
+        width: 100%;
     }
 }
