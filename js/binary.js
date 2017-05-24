@@ -82955,12 +82955,32 @@
 	            credit: tr.find('.credit').html(),
 	            bal: tr.find('.bal').html()
 	        };
+	        if (tr.attr('contract_id') !== undefined) {
+	            row.contract_id = tr.attr('contract_id');
+	        }
+
+	        if (tr.hasClass('selectedRow')) {
+	            row.selectedRow = true;
+	        }
+
 	        return row;
 	    };
 
 	    var replaceTableBodyRowsInfo = function replaceTableBodyRowsInfo(rows, sortedInfo) {
 	        for (var i = 0; i < rows.length; i++) {
 	            var row = rows.eq(i);
+	            if (sortedInfo[i].contract_id) {
+	                row.attr('contract_id', sortedInfo[i].contract_id);
+	            } else {
+	                row.removeAttr('contract_id');
+	            }
+
+	            if (sortedInfo[i].selectedRow) {
+	                row.addClass('selectedRow');
+	            } else {
+	                row.removeClass('selectedRow');
+	            }
+
 	            row.find('.date').html(sortedInfo[i].date);
 	            row.find('.ref').find('span').html(sortedInfo[i].ref);
 	            row.find('.payout').html(sortedInfo[i].payout);
@@ -83346,6 +83366,13 @@
 	        sellSetVisibility(!is_sell_clicked && !is_sold && !is_ended && +contract.is_valid_to_sell === 1);
 	        contract.chart_validation_error = contract.validation_error;
 	        contract.validation_error = '';
+
+	        var timer = window.setInterval(function () {
+	            if ($('.highcharts-root').is(':visible')) {
+	                $('#sell_details_chart_wrapper').find('.barspinner').addClass('invisible');
+	                window.clearInterval(timer);
+	            }
+	        }, 10);
 	    };
 
 	    var updateTimers = function updateTimers() {
@@ -83402,7 +83429,7 @@
 	        $sections.find('#sell_details_table').append($('<table>\n            <tr id="contract_tabs"><th colspan="2" id="contract_information_tab">' + localize('Contract Information') + '</th></tr><tbody id="contract_information_content">\n            ' + createRow('Contract ID', '', 'trade_details_contract_id') + '\n            ' + createRow('Reference ID', '', 'trade_details_ref_id') + '\n            ' + createRow('Start Time', '', 'trade_details_start_date') + '\n            ' + (!contract.tick_count ? createRow('End Time', '', 'trade_details_end_date') + createRow('Remaining Time', '', 'trade_details_live_remaining') : '') + '\n            ' + createRow('Entry Spot', '', 'trade_details_entry_spot') + '\n            ' + createRow(contract.barrier_count > 1 ? 'High Barrier' : /^DIGIT(MATCH|DIFF)$/.test(contract.contract_type) ? 'Target' : 'Barrier', '', 'trade_details_barrier', true) + '\n            ' + (contract.barrier_count > 1 ? createRow('Low Barrier', '', 'trade_details_barrier_low', true) : '') + '\n            ' + createRow('Potential Payout', '', 'trade_details_payout') + '\n            ' + createRow('Purchase Price', '', 'trade_details_purchase_price') + '\n            </tbody>\n            <th colspan="2" id="barrier_change" class="invisible">' + localize('Barrier Change') + '</th>\n            <tbody id="barrier_change_content" class="invisible"></tbody>\n            <tr><th colspan="2" id="trade_details_current_title">' + localize('Current') + '</th></tr>\n            ' + createRow('Spot', 'trade_details_spot_label', 'trade_details_current_spot') + '\n            ' + createRow('Spot Time', 'trade_details_spottime_label', 'trade_details_current_date') + '\n            ' + createRow('Current Time', '', 'trade_details_live_date') + '\n            ' + createRow('Indicative', 'trade_details_indicative_label', 'trade_details_indicative_price') + '\n            ' + createRow('Profit/Loss', '', 'trade_details_profit_loss') + '\n            <tr><td colspan="2" class="last_cell" id="trade_details_message">&nbsp;</td></tr>\n            </table>\n            <div id="errMsg" class="notice-msg ' + hidden_class + '"></div>\n            <div id="trade_details_bottom"><div id="contract_sell_wrapper" class="' + hidden_class + '"></div><div id="contract_sell_message"></div><div id="contract_win_status" class="' + hidden_class + '"></div></div>'));
 
 	        $sections.find('#sell_details_chart_wrapper').html($('<div/>', { id: contract.tick_count ? 'tick_chart' : 'analysis_live_chart', class: 'live_chart_wrapper' }));
-
+	        $sections.find('#sell_details_chart_wrapper').append('<div class="barspinner dark"><div class="rect1"></div><div class="rect2"></div><div class="rect3"></div><div class="rect4"></div><div class="rect5"></div></div>');
 	        $container.find('#' + wrapper_id).append($sections.html()).append($('<div/>', { id: 'errMsg', class: 'notice-msg ' + hidden_class }));
 
 	        SliderUI.showInpageSlider('<div class="' + sliderbox_id + '">' + $container.html() + '</div>', '');
