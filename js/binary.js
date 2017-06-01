@@ -82594,16 +82594,17 @@
 
 	    var loadStatementChunkWhenScroll = function loadStatementChunkWhenScroll() {
 	        $(document).scroll(function () {
+	            $('#statement-table').scrollLeft(10);
 	            if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top && $(document).scrollTop() <= getTableBody().children('tr').last().offset().top && !clonedHeader) {
 	                // clone header and clone statement table and append
-	                clonedHeader = $('#statement-table').find('thead').clone();
-	                clonedHeader.addClass('sticky');
-	                var stickyHeaderContainer = $('<table>', { id: 'statement-table', class: 'sticky-table' });
+	                var statementTable = $('#statement-table');
+	                clonedHeader = statementTable.find('thead').clone();
+	                var stickyHeaderContainer = $('<table>', { id: 'statement-table', class: 'sticky' });
 	                stickyHeaderContainer.append(clonedHeader);
 	                $('.table-container').append(stickyHeaderContainer);
 
-	                // add class sticky
-	                clonedHeader.addClass('sticky');
+	                // table width match with the table
+	                $('.sticky').css('width', $('#statement-table').css('width'));
 
 	                // resize the cloned header
 	                var children = $('.sticky').find('tr').children('th');
@@ -82614,12 +82615,20 @@
 
 	                // bind cloned header with click listener to sorting functions
 	                headerSorterBinder($('.sticky'));
+
+	                $('.sticky').css('left', -($('.table-container').scrollLeft() - $(document).width() * 0.01));
+	                $('.table-container').scroll(function () {
+	                    $('.sticky').css('left', -($('.table-container').scrollLeft() - $(document).width() * 0.01));
+	                });
 	            } else if ($(document).scrollTop() < getTableBody().children('tr').first().offset().top || $(document).scrollTop() > getTableBody().children('tr').last().offset().top) {
 	                // if header is visible or table finishes, destroy cloned header with table
 	                if (clonedHeader) {
-	                    $('.sticky-table').remove();
+	                    $('.sticky').remove();
 	                    clonedHeader = null;
+	                    $('.table-container').off('scroll');
 	                }
+	            } else if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top && $(document).scrollTop() <= getTableBody().children('tr').last().offset().top && clonedHeader) {
+	                $('.sticky').css('top', $(document).scrollTop());
 	            }
 
 	            var hidableHeight = function hidableHeight(percentage) {
@@ -83682,6 +83691,7 @@
 	            }
 	        }
 	        $('html').removeClass('no-scroll');
+	        $('.selectedRow').removeClass('selectedRow');
 	    };
 
 	    var disableButton = function disableButton(button) {
