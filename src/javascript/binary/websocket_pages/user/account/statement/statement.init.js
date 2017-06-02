@@ -29,7 +29,10 @@ const StatementInit = (() => {
         transactions_received,
         transactions_consumed,
         currentSortingMode = sortingMode.DATE_RECENT,
-        clonedHeader = null;
+        clonedHeader = null,
+        tableRows = [];
+
+    const tableRowsInfo = [];
 
     const tableExist = () => (document.getElementById('statement-table'));
 
@@ -85,7 +88,8 @@ const StatementInit = (() => {
             $header.appendTo('#statement-container');
             $('.act, .credit').addClass('nowrap');
             StatementUI.updateStatementTable(getNextChunkStatement());
-
+            $('#statement-container').append(StatementUI.makeSortMessage());
+            StatementUI.renewSortMessage(currentSortingMode);
             // Show a message when the table is empty
             if (transactions_received === 0 && current_batch.length === 0) {
                 $('#statement-table').find('tbody')
@@ -107,37 +111,8 @@ const StatementInit = (() => {
 
     const loadStatementChunkWhenScroll = () => {
         $(document).scroll(() => {
-            if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top &&
-                $(document).scrollTop() <= getTableBody().children('tr').last().offset().top &&
-                !clonedHeader) {
-                // clone header and clone statement table and append
-                clonedHeader = $('#statement-table').find('thead').clone();
-                clonedHeader.addClass('sticky');
-                const stickyHeaderContainer = $('<table>', { id: 'statement-table', class: 'sticky-table' });
-                stickyHeaderContainer.append(clonedHeader);
-                $('.table-container').append(stickyHeaderContainer);
-
-                // add class sticky
-                clonedHeader.addClass('sticky');
-
-                // resize the cloned header
-                const children = $('.sticky').find('tr').children('th');
-                const reference = getTableBody().children('tr').first().children('td');
-                for (let i = 0; i < children.length; i++) {
-                    children.eq(i).width(reference.eq(i).width());
-                }
-
-                // bind cloned header with click listener to sorting functions
-                headerSorterBinder($('.sticky'));
-            } else if ($(document).scrollTop() < getTableBody().children('tr').first().offset().top ||
-                        $(document).scrollTop() > getTableBody().children('tr').last().offset().top) {
-                // if header is visible or table finishes, destroy cloned header with table
-                if (clonedHeader) {
-                    $('.sticky-table').remove();
-                    clonedHeader = null;
-                }
-            }
-
+            stickyHeaderScrollHandler();
+            sortMessageScrollHandler();
             const hidableHeight = (percentage) => {
                 const total_hideable = $(document).height() - $(window).height();
                 return Math.floor((total_hideable * percentage) / 100);
@@ -214,6 +189,7 @@ const StatementInit = (() => {
         });
         getNextBatchStatement();
         loadStatementChunkWhenScroll();
+        bindStickyHeaderResize();
     };
 
     const attachDatePicker = () => {
@@ -241,6 +217,14 @@ const StatementInit = (() => {
         Slider.viewButtonOnClick('#statement-container');
     };
 
+    const bindStickyHeaderResize = () => {
+        $(window).resize(() => {
+            if ($('.sticky')) {
+                StatementUI.resizeStickyTable();
+            }
+        });
+    };
+
     const headerSorterBinder = (header) => {
         header.find('.date').on('click', () => {
             orderTableByDate(true);
@@ -263,196 +247,180 @@ const StatementInit = (() => {
     };
 
     const headerPointerCursorAndIcon = (header) => {
-        header.find('.date').addClass('pointerCursor');
-        header.find('.ref').addClass('pointerCursor');
-        header.find('.payout').addClass('pointerCursor');
-        header.find('.act').addClass('pointerCursor');
-        header.find('.credit').addClass('pointerCursor');
-        header.find('.bal').addClass('pointerCursor');
+        const date = header.find('.date');
+        const ref = header.find('.ref');
+        const payout = header.find('.payout');
+        const act = header.find('.act');
+        const credit = header.find('.credit');
+        const bal = header.find('.bal');
 
-        header.find('.date').append('<span class="sortIcon"></span>');
-        header.find('.ref').append('<span class="sortIcon"></span>');
-        header.find('.payout').append('<span class="sortIcon"></span>');
-        header.find('.act').append('<span class="sortIcon"></span>');
-        header.find('.credit').append('<span class="sortIcon"></span>');
-        header.find('.bal').append('<span class="sortIcon"></span>');
+        date.addClass('pointerCursor');
+        ref.addClass('pointerCursor');
+        payout.addClass('pointerCursor');
+        act.addClass('pointerCursor');
+        credit.addClass('pointerCursor');
+        bal.addClass('pointerCursor');
+
+        date.html(makeFlexContainerWithSortingIcon(date.html()));
+        ref.html(makeFlexContainerWithSortingIcon(ref.html()));
+        payout.html(makeFlexContainerWithSortingIcon(payout.html()));
+        act.html(makeFlexContainerWithSortingIcon(act.html()));
+        credit.html(makeFlexContainerWithSortingIcon(credit.html()));
+        bal.html(makeFlexContainerWithSortingIcon(bal.html()));
+    };
+
+    const makeFlexContainerWithSortingIcon = (item) => {
+        const flexContainer = $('<div>', { class: 'flexContainer' });
+        const flexItemName = $('<div>', { class: 'flexItemName' });
+        const flexIcon = $('<div>', { class: 'flexIcon' });
+        const sortIcon = $('<span>', { class: 'sortIcon' });
+
+        flexItemName.html(item);
+        flexIcon.append(sortIcon);
+        flexContainer.append(flexItemName);
+        flexContainer.append(flexIcon);
+
+        return flexContainer;
     };
 
     const orderTableByDate = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.DATE_LONGTIMEAGO) {
-                currentSortingMode = sortingMode.DATE_RECENT;
-            } else {
-                currentSortingMode = sortingMode.DATE_LONGTIMEAGO;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
-        const descending = ((Number(currentSortingMode !== sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
-        const ascending = ((Number(currentSortingMode === sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
-
-        rowsInfo.sort((a, b) => {
-            const dateFirst = a.date.replace(/[-:GMT \n]/g, '');
-            const dateSecond = b.date.replace(/[-:GMT \n]/g, '');
-            if (dateFirst < dateSecond) {
-                return descending;
-            }
-            if (dateFirst > dateSecond) {
-                return ascending;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        const descending = ((Number(currentSortingMode === sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
+        const ascending = ((Number(currentSortingMode !== sortingMode.DATE_LONGTIMEAGO) * 2) - 1);
+        sortTable(ascending,
+            descending,
+            generateDateComparison(ascending, descending, 'date'),
+            change,
+            sortingMode.DATE_LONGTIMEAGO,
+            sortingMode.DATE_RECENT);
     };
 
     const orderTableByRef = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.REF_LEAST) {
-                currentSortingMode = sortingMode.REF_MOST;
-            } else {
-                currentSortingMode = sortingMode.REF_LEAST;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
-        const descending = ((Number(currentSortingMode !== sortingMode.REF_LEAST) * 2) - 1);
-        const ascending = ((Number(currentSortingMode === sortingMode.REF_LEAST) * 2) - 1);
-
-        rowsInfo.sort((a, b) => {
-            if (a.ref < b.ref) {
-                return descending;
-            }
-            if (a.ref > b.ref) {
-                return ascending;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        const descending = ((Number(currentSortingMode === sortingMode.REF_LEAST) * 2) - 1);
+        const ascending = ((Number(currentSortingMode !== sortingMode.REF_LEAST) * 2) - 1);
+        sortTable(ascending,
+            descending,
+            generateNumberComparison(ascending, descending, 'ref'),
+            change,
+            sortingMode.REF_LEAST,
+            sortingMode.REF_MOST);
     };
 
     const orderTableByPayout = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.PAYOUT_MOST) {
-                currentSortingMode = sortingMode.PAYOUT_LEAST;
-            } else {
-                currentSortingMode = sortingMode.PAYOUT_MOST;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
         const descending = ((Number(currentSortingMode !== sortingMode.PAYOUT_MOST) * 2) - 1);
         const ascending = ((Number(currentSortingMode === sortingMode.PAYOUT_MOST) * 2) - 1);
-
-        rowsInfo.sort((a, b) => {
-            const aPayNum = Number(a.payout.replace(/-/g, ''));
-            const bPayNum = Number(b.payout.replace(/-/g, ''));
-
-            if (aPayNum < bPayNum) {
-                return descending;
-            }
-            if (aPayNum > bPayNum) {
-                return ascending;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        sortTable(ascending,
+            descending,
+            generatePayoutComparison(ascending, descending, 'payout'),
+            change,
+            sortingMode.PAYOUT_MOST,
+            sortingMode.PAYOUT_LEAST);
     };
 
     const orderTableByAction = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.ACT_BUY) {
-                currentSortingMode = sortingMode.ACT_SELL;
-            } else {
-                currentSortingMode = sortingMode.ACT_BUY;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
         const buy = ((Number(currentSortingMode === sortingMode.ACT_BUY) * 2) - 1);
         const sell = ((Number(currentSortingMode !== sortingMode.ACT_BUY) * 2) - 1);
-        rowsInfo.sort((a, b) => {
-            if (a.act < b.act) {
-                return buy;
-            }
-            if (a.act > b.act) {
-                return sell;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        sortTable(buy,
+            sell,
+            generateNumberComparison(sell, buy, 'act'),
+            change,
+            sortingMode.ACT_BUY,
+            sortingMode.ACT_SELL);
     };
 
     const orderTableByCredit = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.CREDIT_PROFIT) {
-                currentSortingMode = sortingMode.CREDIT_LOSSES;
-            } else {
-                currentSortingMode = sortingMode.CREDIT_PROFIT;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
         const losses = ((Number(currentSortingMode !== sortingMode.CREDIT_PROFIT) * 2) - 1);
         const profit = ((Number(currentSortingMode === sortingMode.CREDIT_PROFIT) * 2) - 1);
-
-        rowsInfo.sort((a, b) => {
-            const aCredit = Number(a.credit.replace(/,/g, ''));
-            const bCredit = Number(b.credit.replace(/,/g, ''));
-
-            if (aCredit < bCredit) {
-                return profit;
-            }
-            if (aCredit > bCredit) {
-                return losses;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        sortTable(profit,
+            losses,
+            generatePriceComparison(profit, losses, 'credit'),
+            change,
+            sortingMode.CREDIT_PROFIT,
+            sortingMode.CREDIT_LOSSES);
     };
 
     const orderTableByBalance = (change) => {
-        if (change) {
-            if (currentSortingMode === sortingMode.BAL_MOST) {
-                currentSortingMode = sortingMode.BAL_LEAST;
-            } else {
-                currentSortingMode = sortingMode.BAL_MOST;
-            }
-        }
-        const children = getTableBody().children('tr');
-        const rowsInfo = [];
-        for (let i = 0; i < children.length; i++) {
-            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-        }
         const ascending = ((Number(currentSortingMode !== sortingMode.BAL_MOST) * 2) - 1);
         const descending = ((Number(currentSortingMode === sortingMode.BAL_MOST) * 2) - 1);
+        sortTable(ascending,
+            descending,
+            generatePriceComparison(descending, ascending, 'bal'),
+            change,
+            sortingMode.BAL_MOST,
+            sortingMode.BAL_LEAST);
+    };
 
-        rowsInfo.sort((a, b) => {
-            const aBalance = Number(a.bal.replace(/,/g, ''));
-            const bBalance = Number(b.bal.replace(/,/g, ''));
-            if (aBalance < bBalance) {
-                return descending;
+    const sortTable = (ascending, descending, sortingFunction, sortCategoryChange, defaultMode, secondMode) => {
+        changeSortMode(sortCategoryChange, defaultMode, secondMode);
+        getTableBodyRows();
+        getInfoFromRow();
+        tableRowsInfo.sort(sortingFunction);
+        replaceTableBodyRowsInfo();
+        tableRows.splice(0, tableRows.length);
+        tableRowsInfo.splice(0, tableRowsInfo.length);
+        StatementUI.renewSortMessage(currentSortingMode);
+    };
+
+    const generateDateComparison = (ascending, descending, dateName) => (a, b) => {
+        const dateFirst = a[dateName].replace(/[-:GMT \n]/g, '');
+        const dateSecond = b[dateName].replace(/[-:GMT \n]/g, '');
+        if (dateFirst < dateSecond) {
+            return descending;
+        }
+        if (dateFirst > dateSecond) {
+            return ascending;
+        }
+        return 0;
+    };
+
+    const generateNumberComparison = (ascending, descending, numberName) => (a, b) => {
+        if (a[numberName] < b[numberName]) {
+            return descending;
+        }
+        if (a[numberName] > b[numberName]) {
+            return ascending;
+        }
+        return 0;
+    };
+
+    const generatePayoutComparison = (ascending, descending, payoutName) => (a, b) => {
+        const aPayNum = Number(a[payoutName].replace(/-/g, ''));
+        const bPayNum = Number(b[payoutName].replace(/-/g, ''));
+
+        if (aPayNum < bPayNum) {
+            return descending;
+        }
+        if (aPayNum > bPayNum) {
+            return ascending;
+        }
+        return 0;
+    };
+
+    const generatePriceComparison = (ascending, descending, priceName) => (a, b) => {
+        const aPrice = Number(a[priceName].replace(/,/g, ''));
+        const bPrice = Number(b[priceName].replace(/,/g, ''));
+        if (aPrice < bPrice) {
+            return descending;
+        }
+        if (aPrice > bPrice) {
+            return ascending;
+        }
+        return 0;
+    };
+
+    const changeSortMode = (sortCategoryChange, defaultMode, secondMode) => {
+        if (sortCategoryChange) {
+            if (currentSortingMode === defaultMode) {
+                currentSortingMode = secondMode;
+            } else {
+                currentSortingMode = defaultMode;
             }
-            if (aBalance > bBalance) {
-                return ascending;
-            }
-            return 0;
-        });
-        replaceTableBodyRowsInfo(children, rowsInfo);
+        }
+    };
+
+    const getInfoFromRow = () => {
+        for (let i = 0; i < tableRows.length; i++) {
+            tableRowsInfo.push(getRowInfoFromTR(tableRows.eq(i)));
+        }
     };
 
     const getTableBody = () => {
@@ -460,6 +428,10 @@ const StatementInit = (() => {
             return $('#statement-table').find('tbody');
         }
         return null;
+    };
+
+    const getTableBodyRows = () => {
+        tableRows = getTableBody().children('tr');
     };
 
     const getRowInfoFromTR = (tr) => {
@@ -483,38 +455,99 @@ const StatementInit = (() => {
         return row;
     };
 
-    const replaceTableBodyRowsInfo = (rows, sortedInfo) => {
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows.eq(i);
-            if (sortedInfo[i].contract_id) {
-                row.attr('contract_id', sortedInfo[i].contract_id);
+    const replaceTableBodyRowsInfo = () => {
+        for (let i = 0; i < tableRows.length; i++) {
+            const row = tableRows.eq(i);
+            if (tableRowsInfo[i].contract_id) {
+                row.attr('contract_id', tableRowsInfo[i].contract_id);
             } else {
                 row.removeAttr('contract_id');
             }
 
-            if (sortedInfo[i].selectedRow) {
+            if (tableRowsInfo[i].selectedRow) {
                 row.addClass('selectedRow');
             } else {
                 row.removeClass('selectedRow');
             }
 
-            row.find('.date').html(sortedInfo[i].date);
-            row.find('.ref').find('span').html(sortedInfo[i].ref);
-            row.find('.payout').html(sortedInfo[i].payout);
-            row.find('.act').html(sortedInfo[i].act);
-            row.find('.desc').html(sortedInfo[i].desc);
-            row.find('.credit').html(sortedInfo[i].credit);
-            row.find('.bal').html(sortedInfo[i].bal);
+            row.find('.date').html(tableRowsInfo[i].date);
+            row.find('.ref').find('span').html(tableRowsInfo[i].ref);
+            row.find('.payout').html(tableRowsInfo[i].payout);
+            row.find('.act').html(tableRowsInfo[i].act);
+            row.find('.desc').html(tableRowsInfo[i].desc);
+            row.find('.credit').html(tableRowsInfo[i].credit);
+            row.find('.bal').html(tableRowsInfo[i].bal);
 
             row.find('.credit').removeClass('loss');
             row.find('.credit').removeClass('profit');
 
-            if (sortedInfo[i].credit.replace(/,/g, '') >= 0.00) {
+            if (tableRowsInfo[i].credit.replace(/,/g, '') >= 0.00) {
                 row.find('.credit').removeClass('loss');
                 row.find('.credit').addClass('profit');
-            } else if (sortedInfo[i].credit.replace(/,/g, '') < 0.00) {
+            } else if (tableRowsInfo[i].credit.replace(/,/g, '') < 0.00) {
                 row.find('.credit').addClass('loss');
                 row.find('.credit').removeClass('profit');
+            }
+        }
+    };
+
+    const stickyHeaderScrollHandler = () => {
+        const firstRow = getTableBody().children('tr').first();
+        const lastRow = getTableBody().children('tr').last();
+
+        if (firstRow !== undefined) {
+            const firstRowTop = firstRow.offset().top;
+            const lastRowBottom = lastRow.offset().top + lastRow.height();
+            const documentTopPosition = $(document).scrollTop();
+            if (
+                documentTopPosition >= firstRowTop &&
+                documentTopPosition <= lastRowBottom &&
+                !clonedHeader
+                ) {
+                // clone header and clone statement table and append
+                const stickyHeaderContainer = StatementUI.makeStickyTable();
+                clonedHeader = StatementUI.cloneStatementTableHeader();
+                stickyHeaderContainer.append(clonedHeader);
+                $('.table-container').append(stickyHeaderContainer);
+
+                // table width match with the table
+                StatementUI.resizeStickyTable();
+
+                // resize the cloned header
+                const reference = getTableBody().children('tr').first().children('td');
+                StatementUI.resizeStickyTableHeader(reference);
+
+                // bind cloned header with click listener to sorting functions
+                headerSorterBinder($('.sticky'));
+
+                // change sticky header scroll left position according to table horizontal scroll on mobile.
+                StatementUI.stickyHeaderScrollLeft();
+
+                // binding scroll listener
+                $('.table-container').scroll(() => {
+                    StatementUI.stickyHeaderScrollLeft();
+                });
+            } else if (documentTopPosition < firstRowTop ||
+                        documentTopPosition > lastRowBottom) {
+                // if header is visible or table finishes, destroy cloned header with table
+                if (clonedHeader) {
+                    $('.sticky').remove();
+                    clonedHeader = null;
+                    $('.table-container').off('scroll');
+                }
+            }
+        }
+    };
+
+    const sortMessageScrollHandler = () => {
+        const lastRow = getTableBody().children('tr').last();
+        if (lastRow !== undefined) {
+            const lastRowBottom = lastRow.offset().top + lastRow.height();
+            const documentBottomPosition = $(document).scrollTop() + $(window).height();
+            if (documentBottomPosition > lastRowBottom) {
+                StatementUI.hideSortMessage();
+            } else if (documentBottomPosition <= lastRowBottom) {
+                StatementUI.showSortMessage();
             }
         }
     };

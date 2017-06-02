@@ -92,6 +92,7 @@ const SliderUI = (() => {
             }
         }
         $('html').removeClass('no-scroll');
+        $('.selectedRow').removeClass('selectedRow');
     };
 
     const disableButton = (button) => {
