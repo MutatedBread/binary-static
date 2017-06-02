@@ -82516,7 +82516,10 @@
 	        transactions_received = void 0,
 	        transactions_consumed = void 0,
 	        currentSortingMode = sortingMode.DATE_RECENT,
-	        clonedHeader = null;
+	        clonedHeader = null,
+	        tableRows = [];
+
+	    var tableRowsInfo = [];
 
 	    var tableExist = function tableExist() {
 	        return document.getElementById('statement-table');
@@ -82576,7 +82579,8 @@
 	            $header.appendTo('#statement-container');
 	            $('.act, .credit').addClass('nowrap');
 	            StatementUI.updateStatementTable(getNextChunkStatement());
-
+	            $('#statement-container').append(StatementUI.makeSortMessage());
+	            StatementUI.renewSortMessage(currentSortingMode);
 	            // Show a message when the table is empty
 	            if (transactions_received === 0 && current_batch.length === 0) {
 	                $('#statement-table').find('tbody').append($('<tr/>', { class: 'flex-tr' }).append($('<td/>', { colspan: 7 }).append($('<p/>', { class: 'notice-msg center-text', text: localize('Your account has no trading activity.') }))));
@@ -82594,43 +82598,8 @@
 
 	    var loadStatementChunkWhenScroll = function loadStatementChunkWhenScroll() {
 	        $(document).scroll(function () {
-	            $('#statement-table').scrollLeft(10);
-	            if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top && $(document).scrollTop() <= getTableBody().children('tr').last().offset().top && !clonedHeader) {
-	                // clone header and clone statement table and append
-	                var statementTable = $('#statement-table');
-	                clonedHeader = statementTable.find('thead').clone();
-	                var stickyHeaderContainer = $('<table>', { id: 'statement-table', class: 'sticky' });
-	                stickyHeaderContainer.append(clonedHeader);
-	                $('.table-container').append(stickyHeaderContainer);
-
-	                // table width match with the table
-	                $('.sticky').css('width', $('#statement-table').css('width'));
-
-	                // resize the cloned header
-	                var children = $('.sticky').find('tr').children('th');
-	                var reference = getTableBody().children('tr').first().children('td');
-	                for (var i = 0; i < children.length; i++) {
-	                    children.eq(i).width(reference.eq(i).width());
-	                }
-
-	                // bind cloned header with click listener to sorting functions
-	                headerSorterBinder($('.sticky'));
-
-	                $('.sticky').css('left', -($('.table-container').scrollLeft() - $(document).width() * 0.01));
-	                $('.table-container').scroll(function () {
-	                    $('.sticky').css('left', -($('.table-container').scrollLeft() - $(document).width() * 0.01));
-	                });
-	            } else if ($(document).scrollTop() < getTableBody().children('tr').first().offset().top || $(document).scrollTop() > getTableBody().children('tr').last().offset().top) {
-	                // if header is visible or table finishes, destroy cloned header with table
-	                if (clonedHeader) {
-	                    $('.sticky').remove();
-	                    clonedHeader = null;
-	                    $('.table-container').off('scroll');
-	                }
-	            } else if ($(document).scrollTop() >= getTableBody().children('tr').first().offset().top && $(document).scrollTop() <= getTableBody().children('tr').last().offset().top && clonedHeader) {
-	                $('.sticky').css('top', $(document).scrollTop());
-	            }
-
+	            stickyHeaderScrollHandler();
+	            sortMessageScrollHandler();
 	            var hidableHeight = function hidableHeight(percentage) {
 	                var total_hideable = $(document).height() - $(window).height();
 	                return Math.floor(total_hideable * percentage / 100);
@@ -82707,6 +82676,7 @@
 	        });
 	        getNextBatchStatement();
 	        loadStatementChunkWhenScroll();
+	        bindStickyHeaderResize();
 	    };
 
 	    var attachDatePicker = function attachDatePicker() {
@@ -82733,6 +82703,14 @@
 	        Slider.viewButtonOnClick('#statement-container');
 	    };
 
+	    var bindStickyHeaderResize = function bindStickyHeaderResize() {
+	        $(window).resize(function () {
+	            if ($('.sticky')) {
+	                StatementUI.resizeStickyTable();
+	            }
+	        });
+	    };
+
 	    var headerSorterBinder = function headerSorterBinder(header) {
 	        header.find('.date').on('click', function () {
 	            orderTableByDate(true);
@@ -82755,40 +82733,93 @@
 	    };
 
 	    var headerPointerCursorAndIcon = function headerPointerCursorAndIcon(header) {
-	        header.find('.date').addClass('pointerCursor');
-	        header.find('.ref').addClass('pointerCursor');
-	        header.find('.payout').addClass('pointerCursor');
-	        header.find('.act').addClass('pointerCursor');
-	        header.find('.credit').addClass('pointerCursor');
-	        header.find('.bal').addClass('pointerCursor');
+	        var date = header.find('.date');
+	        var ref = header.find('.ref');
+	        var payout = header.find('.payout');
+	        var act = header.find('.act');
+	        var credit = header.find('.credit');
+	        var bal = header.find('.bal');
 
-	        header.find('.date').append('<span class="sortIcon"></span>');
-	        header.find('.ref').append('<span class="sortIcon"></span>');
-	        header.find('.payout').append('<span class="sortIcon"></span>');
-	        header.find('.act').append('<span class="sortIcon"></span>');
-	        header.find('.credit').append('<span class="sortIcon"></span>');
-	        header.find('.bal').append('<span class="sortIcon"></span>');
+	        date.addClass('pointerCursor');
+	        ref.addClass('pointerCursor');
+	        payout.addClass('pointerCursor');
+	        act.addClass('pointerCursor');
+	        credit.addClass('pointerCursor');
+	        bal.addClass('pointerCursor');
+
+	        date.html(makeFlexContainerWithSortingIcon(date.html()));
+	        ref.html(makeFlexContainerWithSortingIcon(ref.html()));
+	        payout.html(makeFlexContainerWithSortingIcon(payout.html()));
+	        act.html(makeFlexContainerWithSortingIcon(act.html()));
+	        credit.html(makeFlexContainerWithSortingIcon(credit.html()));
+	        bal.html(makeFlexContainerWithSortingIcon(bal.html()));
+	    };
+
+	    var makeFlexContainerWithSortingIcon = function makeFlexContainerWithSortingIcon(item) {
+	        var flexContainer = $('<div>', { class: 'flexContainer' });
+	        var flexItemName = $('<div>', { class: 'flexItemName' });
+	        var flexIcon = $('<div>', { class: 'flexIcon' });
+	        var sortIcon = $('<span>', { class: 'sortIcon' });
+
+	        flexItemName.html(item);
+	        flexIcon.append(sortIcon);
+	        flexContainer.append(flexItemName);
+	        flexContainer.append(flexIcon);
+
+	        return flexContainer;
 	    };
 
 	    var orderTableByDate = function orderTableByDate(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.DATE_LONGTIMEAGO) {
-	                currentSortingMode = sortingMode.DATE_RECENT;
-	            } else {
-	                currentSortingMode = sortingMode.DATE_LONGTIMEAGO;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var descending = Number(currentSortingMode !== sortingMode.DATE_LONGTIMEAGO) * 2 - 1;
-	        var ascending = Number(currentSortingMode === sortingMode.DATE_LONGTIMEAGO) * 2 - 1;
+	        var descending = Number(currentSortingMode === sortingMode.DATE_LONGTIMEAGO) * 2 - 1;
+	        var ascending = Number(currentSortingMode !== sortingMode.DATE_LONGTIMEAGO) * 2 - 1;
+	        sortTable(ascending, descending, generateDateComparison(ascending, descending, 'date'), change, sortingMode.DATE_LONGTIMEAGO, sortingMode.DATE_RECENT);
+	    };
 
-	        rowsInfo.sort(function (a, b) {
-	            var dateFirst = a.date.replace(/[-:GMT \n]/g, '');
-	            var dateSecond = b.date.replace(/[-:GMT \n]/g, '');
+	    var orderTableByRef = function orderTableByRef(change) {
+	        var descending = Number(currentSortingMode === sortingMode.REF_LEAST) * 2 - 1;
+	        var ascending = Number(currentSortingMode !== sortingMode.REF_LEAST) * 2 - 1;
+	        sortTable(ascending, descending, generateNumberComparison(ascending, descending, 'ref'), change, sortingMode.REF_LEAST, sortingMode.REF_MOST);
+	    };
+
+	    var orderTableByPayout = function orderTableByPayout(change) {
+	        var descending = Number(currentSortingMode !== sortingMode.PAYOUT_MOST) * 2 - 1;
+	        var ascending = Number(currentSortingMode === sortingMode.PAYOUT_MOST) * 2 - 1;
+	        sortTable(ascending, descending, generatePayoutComparison(ascending, descending, 'payout'), change, sortingMode.PAYOUT_MOST, sortingMode.PAYOUT_LEAST);
+	    };
+
+	    var orderTableByAction = function orderTableByAction(change) {
+	        var buy = Number(currentSortingMode === sortingMode.ACT_BUY) * 2 - 1;
+	        var sell = Number(currentSortingMode !== sortingMode.ACT_BUY) * 2 - 1;
+	        sortTable(buy, sell, generateNumberComparison(sell, buy, 'act'), change, sortingMode.ACT_BUY, sortingMode.ACT_SELL);
+	    };
+
+	    var orderTableByCredit = function orderTableByCredit(change) {
+	        var losses = Number(currentSortingMode !== sortingMode.CREDIT_PROFIT) * 2 - 1;
+	        var profit = Number(currentSortingMode === sortingMode.CREDIT_PROFIT) * 2 - 1;
+	        sortTable(profit, losses, generatePriceComparison(profit, losses, 'credit'), change, sortingMode.CREDIT_PROFIT, sortingMode.CREDIT_LOSSES);
+	    };
+
+	    var orderTableByBalance = function orderTableByBalance(change) {
+	        var ascending = Number(currentSortingMode !== sortingMode.BAL_MOST) * 2 - 1;
+	        var descending = Number(currentSortingMode === sortingMode.BAL_MOST) * 2 - 1;
+	        sortTable(ascending, descending, generatePriceComparison(descending, ascending, 'bal'), change, sortingMode.BAL_MOST, sortingMode.BAL_LEAST);
+	    };
+
+	    var sortTable = function sortTable(ascending, descending, sortingFunction, sortCategoryChange, defaultMode, secondMode) {
+	        changeSortMode(sortCategoryChange, defaultMode, secondMode);
+	        getTableBodyRows();
+	        getInfoFromRow();
+	        tableRowsInfo.sort(sortingFunction);
+	        replaceTableBodyRowsInfo();
+	        tableRows.splice(0, tableRows.length);
+	        tableRowsInfo.splice(0, tableRowsInfo.length);
+	        StatementUI.renewSortMessage(currentSortingMode);
+	    };
+
+	    var generateDateComparison = function generateDateComparison(ascending, descending, dateName) {
+	        return function (a, b) {
+	            var dateFirst = a[dateName].replace(/[-:GMT \n]/g, '');
+	            var dateSecond = b[dateName].replace(/[-:GMT \n]/g, '');
 	            if (dateFirst < dateSecond) {
 	                return descending;
 	            }
@@ -82796,57 +82827,25 @@
 	                return ascending;
 	            }
 	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
+	        };
 	    };
 
-	    var orderTableByRef = function orderTableByRef(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.REF_LEAST) {
-	                currentSortingMode = sortingMode.REF_MOST;
-	            } else {
-	                currentSortingMode = sortingMode.REF_LEAST;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var descending = Number(currentSortingMode !== sortingMode.REF_LEAST) * 2 - 1;
-	        var ascending = Number(currentSortingMode === sortingMode.REF_LEAST) * 2 - 1;
-
-	        rowsInfo.sort(function (a, b) {
-	            if (a.ref < b.ref) {
+	    var generateNumberComparison = function generateNumberComparison(ascending, descending, numberName) {
+	        return function (a, b) {
+	            if (a[numberName] < b[numberName]) {
 	                return descending;
 	            }
-	            if (a.ref > b.ref) {
+	            if (a[numberName] > b[numberName]) {
 	                return ascending;
 	            }
 	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
+	        };
 	    };
 
-	    var orderTableByPayout = function orderTableByPayout(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.PAYOUT_MOST) {
-	                currentSortingMode = sortingMode.PAYOUT_LEAST;
-	            } else {
-	                currentSortingMode = sortingMode.PAYOUT_MOST;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var descending = Number(currentSortingMode !== sortingMode.PAYOUT_MOST) * 2 - 1;
-	        var ascending = Number(currentSortingMode === sortingMode.PAYOUT_MOST) * 2 - 1;
-
-	        rowsInfo.sort(function (a, b) {
-	            var aPayNum = Number(a.payout.replace(/-/g, ''));
-	            var bPayNum = Number(b.payout.replace(/-/g, ''));
+	    var generatePayoutComparison = function generatePayoutComparison(ascending, descending, payoutName) {
+	        return function (a, b) {
+	            var aPayNum = Number(a[payoutName].replace(/-/g, ''));
+	            var bPayNum = Number(b[payoutName].replace(/-/g, ''));
 
 	            if (aPayNum < bPayNum) {
 	                return descending;
@@ -82855,96 +82854,37 @@
 	                return ascending;
 	            }
 	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
+	        };
 	    };
 
-	    var orderTableByAction = function orderTableByAction(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.ACT_BUY) {
-	                currentSortingMode = sortingMode.ACT_SELL;
-	            } else {
-	                currentSortingMode = sortingMode.ACT_BUY;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var buy = Number(currentSortingMode === sortingMode.ACT_BUY) * 2 - 1;
-	        var sell = Number(currentSortingMode !== sortingMode.ACT_BUY) * 2 - 1;
-	        rowsInfo.sort(function (a, b) {
-	            if (a.act < b.act) {
-	                return buy;
-	            }
-	            if (a.act > b.act) {
-	                return sell;
-	            }
-	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
-	    };
-
-	    var orderTableByCredit = function orderTableByCredit(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.CREDIT_PROFIT) {
-	                currentSortingMode = sortingMode.CREDIT_LOSSES;
-	            } else {
-	                currentSortingMode = sortingMode.CREDIT_PROFIT;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var losses = Number(currentSortingMode !== sortingMode.CREDIT_PROFIT) * 2 - 1;
-	        var profit = Number(currentSortingMode === sortingMode.CREDIT_PROFIT) * 2 - 1;
-
-	        rowsInfo.sort(function (a, b) {
-	            var aCredit = Number(a.credit.replace(/,/g, ''));
-	            var bCredit = Number(b.credit.replace(/,/g, ''));
-
-	            if (aCredit < bCredit) {
-	                return profit;
-	            }
-	            if (aCredit > bCredit) {
-	                return losses;
-	            }
-	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
-	    };
-
-	    var orderTableByBalance = function orderTableByBalance(change) {
-	        if (change) {
-	            if (currentSortingMode === sortingMode.BAL_MOST) {
-	                currentSortingMode = sortingMode.BAL_LEAST;
-	            } else {
-	                currentSortingMode = sortingMode.BAL_MOST;
-	            }
-	        }
-	        var children = getTableBody().children('tr');
-	        var rowsInfo = [];
-	        for (var i = 0; i < children.length; i++) {
-	            rowsInfo.push(getRowInfoFromTR(children.eq(i)));
-	        }
-	        var ascending = Number(currentSortingMode !== sortingMode.BAL_MOST) * 2 - 1;
-	        var descending = Number(currentSortingMode === sortingMode.BAL_MOST) * 2 - 1;
-
-	        rowsInfo.sort(function (a, b) {
-	            var aBalance = Number(a.bal.replace(/,/g, ''));
-	            var bBalance = Number(b.bal.replace(/,/g, ''));
-	            if (aBalance < bBalance) {
+	    var generatePriceComparison = function generatePriceComparison(ascending, descending, priceName) {
+	        return function (a, b) {
+	            var aPrice = Number(a[priceName].replace(/,/g, ''));
+	            var bPrice = Number(b[priceName].replace(/,/g, ''));
+	            if (aPrice < bPrice) {
 	                return descending;
 	            }
-	            if (aBalance > bBalance) {
+	            if (aPrice > bPrice) {
 	                return ascending;
 	            }
 	            return 0;
-	        });
-	        replaceTableBodyRowsInfo(children, rowsInfo);
+	        };
+	    };
+
+	    var changeSortMode = function changeSortMode(sortCategoryChange, defaultMode, secondMode) {
+	        if (sortCategoryChange) {
+	            if (currentSortingMode === defaultMode) {
+	                currentSortingMode = secondMode;
+	            } else {
+	                currentSortingMode = defaultMode;
+	            }
+	        }
+	    };
+
+	    var getInfoFromRow = function getInfoFromRow() {
+	        for (var i = 0; i < tableRows.length; i++) {
+	            tableRowsInfo.push(getRowInfoFromTR(tableRows.eq(i)));
+	        }
 	    };
 
 	    var getTableBody = function getTableBody() {
@@ -82952,6 +82892,10 @@
 	            return $('#statement-table').find('tbody');
 	        }
 	        return null;
+	    };
+
+	    var getTableBodyRows = function getTableBodyRows() {
+	        tableRows = getTableBody().children('tr');
 	    };
 
 	    var getRowInfoFromTR = function getRowInfoFromTR(tr) {
@@ -82975,38 +82919,94 @@
 	        return row;
 	    };
 
-	    var replaceTableBodyRowsInfo = function replaceTableBodyRowsInfo(rows, sortedInfo) {
-	        for (var i = 0; i < rows.length; i++) {
-	            var row = rows.eq(i);
-	            if (sortedInfo[i].contract_id) {
-	                row.attr('contract_id', sortedInfo[i].contract_id);
+	    var replaceTableBodyRowsInfo = function replaceTableBodyRowsInfo() {
+	        for (var i = 0; i < tableRows.length; i++) {
+	            var row = tableRows.eq(i);
+	            if (tableRowsInfo[i].contract_id) {
+	                row.attr('contract_id', tableRowsInfo[i].contract_id);
 	            } else {
 	                row.removeAttr('contract_id');
 	            }
 
-	            if (sortedInfo[i].selectedRow) {
+	            if (tableRowsInfo[i].selectedRow) {
 	                row.addClass('selectedRow');
 	            } else {
 	                row.removeClass('selectedRow');
 	            }
 
-	            row.find('.date').html(sortedInfo[i].date);
-	            row.find('.ref').find('span').html(sortedInfo[i].ref);
-	            row.find('.payout').html(sortedInfo[i].payout);
-	            row.find('.act').html(sortedInfo[i].act);
-	            row.find('.desc').html(sortedInfo[i].desc);
-	            row.find('.credit').html(sortedInfo[i].credit);
-	            row.find('.bal').html(sortedInfo[i].bal);
+	            row.find('.date').html(tableRowsInfo[i].date);
+	            row.find('.ref').find('span').html(tableRowsInfo[i].ref);
+	            row.find('.payout').html(tableRowsInfo[i].payout);
+	            row.find('.act').html(tableRowsInfo[i].act);
+	            row.find('.desc').html(tableRowsInfo[i].desc);
+	            row.find('.credit').html(tableRowsInfo[i].credit);
+	            row.find('.bal').html(tableRowsInfo[i].bal);
 
 	            row.find('.credit').removeClass('loss');
 	            row.find('.credit').removeClass('profit');
 
-	            if (sortedInfo[i].credit.replace(/,/g, '') >= 0.00) {
+	            if (tableRowsInfo[i].credit.replace(/,/g, '') >= 0.00) {
 	                row.find('.credit').removeClass('loss');
 	                row.find('.credit').addClass('profit');
-	            } else if (sortedInfo[i].credit.replace(/,/g, '') < 0.00) {
+	            } else if (tableRowsInfo[i].credit.replace(/,/g, '') < 0.00) {
 	                row.find('.credit').addClass('loss');
 	                row.find('.credit').removeClass('profit');
+	            }
+	        }
+	    };
+
+	    var stickyHeaderScrollHandler = function stickyHeaderScrollHandler() {
+	        var firstRow = getTableBody().children('tr').first();
+	        var lastRow = getTableBody().children('tr').last();
+
+	        if (firstRow !== undefined) {
+	            var firstRowTop = firstRow.offset().top;
+	            var lastRowBottom = lastRow.offset().top + lastRow.height();
+	            var documentTopPosition = $(document).scrollTop();
+	            if (documentTopPosition >= firstRowTop && documentTopPosition <= lastRowBottom && !clonedHeader) {
+	                // clone header and clone statement table and append
+	                var stickyHeaderContainer = StatementUI.makeStickyTable();
+	                clonedHeader = StatementUI.cloneStatementTableHeader();
+	                stickyHeaderContainer.append(clonedHeader);
+	                $('.table-container').append(stickyHeaderContainer);
+
+	                // table width match with the table
+	                StatementUI.resizeStickyTable();
+
+	                // resize the cloned header
+	                var reference = getTableBody().children('tr').first().children('td');
+	                StatementUI.resizeStickyTableHeader(reference);
+
+	                // bind cloned header with click listener to sorting functions
+	                headerSorterBinder($('.sticky'));
+
+	                // change sticky header scroll left position according to table horizontal scroll on mobile.
+	                StatementUI.stickyHeaderScrollLeft();
+
+	                // binding scroll listener
+	                $('.table-container').scroll(function () {
+	                    StatementUI.stickyHeaderScrollLeft();
+	                });
+	            } else if (documentTopPosition < firstRowTop || documentTopPosition > lastRowBottom) {
+	                // if header is visible or table finishes, destroy cloned header with table
+	                if (clonedHeader) {
+	                    $('.sticky').remove();
+	                    clonedHeader = null;
+	                    $('.table-container').off('scroll');
+	                }
+	            }
+	        }
+	    };
+
+	    var sortMessageScrollHandler = function sortMessageScrollHandler() {
+	        var lastRow = getTableBody().children('tr').last();
+	        if (lastRow !== undefined) {
+	            var lastRowBottom = lastRow.offset().top + lastRow.height();
+	            var documentBottomPosition = $(document).scrollTop() + $(window).height();
+	            if (documentBottomPosition > lastRowBottom) {
+	                StatementUI.hideSortMessage();
+	            } else if (documentBottomPosition <= lastRowBottom) {
+	                StatementUI.showSortMessage();
 	            }
 	        }
 	    };
@@ -83040,7 +83040,8 @@
 	    'use strict';
 
 	    var all_data = [],
-	        oauth_apps = {};
+	        oauth_apps = {},
+	        sortMessageShown = true;
 
 	    var table_id = 'statement-table';
 	    var columns = ['date', 'ref', 'payout', 'act', 'desc', 'credit', 'bal'];
@@ -83109,12 +83110,80 @@
 	        downloadCSV(Statement.generateCSV(all_data, jpClient()), 'Statement_' + Client.get('loginid') + '_latest' + $('#rows_count').text() + '_' + toJapanTimeIfNeeded(window.time).replace(/\s/g, '_').replace(/:/g, '') + '.csv');
 	    };
 
+	    var showSortMessage = function showSortMessage() {
+	        if (!sortMessageShown && $('.sortModeBox') !== undefined) {
+	            $('.sortModeBox').animate({
+	                top: '90%'
+	            }, 100, function () {
+	                sortMessageShown = true;
+	            });
+	        }
+	    };
+
+	    var hideSortMessage = function hideSortMessage() {
+	        if (sortMessageShown && $('.sortModeBox') !== undefined) {
+	            $('.sortModeBox').animate({
+	                top: '100%'
+	            }, 100, function () {
+	                sortMessageShown = false;
+	            });
+	        }
+	    };
+
+	    var renewSortMessage = function renewSortMessage(message) {
+	        var sortMessage = 'Sort mode : '.concat('<br>').concat(message);
+	        $('.sortModeBox').find('.sortMessage').html(sortMessage);
+	    };
+
+	    var makeSortMessage = function makeSortMessage() {
+	        var sortModeBox = $('<div>', { class: 'sortModeBox' });
+	        sortModeBox.append('<div class="sortMessage"></div>');
+	        return sortModeBox;
+	    };
+
+	    var getStatementTable = function getStatementTable() {
+	        return $('#statement-table');
+	    };
+
+	    var cloneStatementTableHeader = function cloneStatementTableHeader() {
+	        return getStatementTable().find('thead').clone();
+	    };
+
+	    var makeStickyTable = function makeStickyTable() {
+	        return $('<table>', { id: 'statement-table', class: 'sticky' });
+	    };
+
+	    var resizeStickyTable = function resizeStickyTable() {
+	        $('.sticky').css('width', getStatementTable().css('width'));
+	    };
+
+	    var resizeStickyTableHeader = function resizeStickyTableHeader(referenceArray) {
+	        var stickyHeaderItems = $('.sticky').find('tr').children('th');
+	        for (var i = 0; i < stickyHeaderItems.length; i++) {
+	            stickyHeaderItems.eq(i).width(referenceArray.eq(i).width());
+	        }
+	    };
+
+	    var stickyHeaderScrollLeft = function stickyHeaderScrollLeft() {
+	        $('.sticky').css('left', -($('.table-container').scrollLeft() - $(document).width() * 0.01));
+	    };
+
 	    return {
 	        clearTableContent: clearTableContent,
 	        createEmptyStatementTable: createEmptyStatementTable,
 	        updateStatementTable: updateStatementTable,
 	        errorMessage: errorMessage,
 	        exportCSV: exportCSV,
+	        makeSortMessage: makeSortMessage,
+	        showSortMessage: showSortMessage,
+	        hideSortMessage: hideSortMessage,
+	        renewSortMessage: renewSortMessage,
+	        getStatementTable: getStatementTable,
+	        cloneStatementTableHeader: cloneStatementTableHeader,
+	        makeStickyTable: makeStickyTable,
+	        resizeStickyTable: resizeStickyTable,
+	        resizeStickyTableHeader: resizeStickyTableHeader,
+	        stickyHeaderScrollLeft: stickyHeaderScrollLeft,
 	        setOauthApps: function setOauthApps(values) {
 	            return oauth_apps = values;
 	        }
@@ -83799,21 +83868,21 @@
 /* 580 */
 /***/ (function(module, exports) {
 
-	"use strict";
+	'use strict';
 
 	module.exports = Object.freeze({
-	    DATE_RECENT: 0,
-	    DATE_LONGTIMEAGO: 1,
-	    REF_MOST: 2,
-	    REF_LEAST: 3,
-	    PAYOUT_MOST: 4,
-	    PAYOUT_LEAST: 5,
-	    ACT_BUY: 6,
-	    ACT_SELL: 7,
-	    CREDIT_LOSSES: 8,
-	    CREDIT_PROFIT: 9,
-	    BAL_MOST: 10,
-	    BAL_LEAST: 11
+	    DATE_RECENT: 'Most Recent Date',
+	    DATE_LONGTIMEAGO: 'Most Earliest Date',
+	    REF_MOST: 'Most Recent Reference',
+	    REF_LEAST: 'Most Earliest Reference',
+	    PAYOUT_MOST: 'Most Payout',
+	    PAYOUT_LEAST: 'Least Payout',
+	    ACT_BUY: 'Buy Action',
+	    ACT_SELL: 'Sell Action',
+	    CREDIT_LOSSES: 'Most Losses',
+	    CREDIT_PROFIT: 'Most Profit',
+	    BAL_MOST: 'Most Balance',
+	    BAL_LEAST: 'Least Balance'
 	});
 
 /***/ }),

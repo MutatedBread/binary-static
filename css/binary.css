@@ -860,6 +860,30 @@ table td {
 .table-container #statement-table .pointerCursor, .table-container #profit-table .pointerCursor {
   cursor: pointer;
 }
+.table-container #statement-table .flexContainer, .table-container #profit-table .flexContainer {
+  width: 100%;
+  height: 100%;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: row;
+  -ms-flex-direction: row;
+      flex-direction: row;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+      justify-content: space-between;
+  -webkit-align-items: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+.table-container #statement-table .flexItemName, .table-container #profit-table .flexItemName {
+  width: 80%;
+  height: 100%;
+}
+.table-container #statement-table .flexIcon, .table-container #profit-table .flexIcon {
+  width: 20%;
+  height: 100%;
+}
 .table-container #statement-table .sortIcon, .table-container #profit-table .sortIcon {
   background: url("https://image.flaticon.com/icons/svg/32/32074.svg");
   background-size: cover;
@@ -876,7 +900,8 @@ table td {
   }
 }
 .table-container .sticky {
-  position: absolute;
+  position: fixed;
+  top: 0;
   z-index: 100;
   overflow-x: visible;
   padding-left: 1%;
@@ -4290,6 +4315,35 @@ div.kineticjs-content {
   -webkit-flex: 0.8 1 35px;
       -ms-flex: 0.8 1 35px;
           flex: 0.8 1 35px;
+}
+#statement-container .sortModeBox {
+  background-color: #2a3052;
+  width: 40%;
+  height: 10%;
+  position: fixed;
+  top: 90%;
+  left: 30%;
+  float: left;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -ms-flex-align: center;
+      align-items: center;
+  -webkit-align-items: center;
+  -ms-flex-pack: center;
+      justify-content: center;
+  -webkit-justify-content: center;
+}
+#statement-container .sortModeBox .sortMessage {
+  color: #fff;
+  text-align: center;
+}
+@media screen and (max-width: 600px) {
+  #statement-container .sortModeBox {
+    width: 60%;
+    float: left;
+    left: 20%;
+  }
 }
 
 @media screen and (max-width: 480px) {
